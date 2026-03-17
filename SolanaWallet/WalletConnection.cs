@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using Solnet.Rpc;
 using Solnet.Rpc.Builders;
 using Solnet.Programs;
 using Solnet.Rpc.Models;
@@ -13,15 +14,33 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
     public class WalletConnection
     {
         private MobileWalletConnection _connection = new();
+        private IRpcClient _rpcClient = ClientFactory.GetClient(Cluster.MainNet);
+        private string _clusterName = "mainnet-beta";
+
+        public void SetNetwork(bool isMainnet)
+        {
+            _rpcClient = ClientFactory.GetClient(isMainnet ? Cluster.MainNet : Cluster.DevNet);
+            _clusterName = isMainnet ? "mainnet-beta" : "devnet";
+            Console.WriteLine($"[WMA] Network switched to: {_clusterName}");
+            
+            // Clear session when switching networks to force fresh authorize
+            AuthToken = null;
+            Accounts = new();
+            SolBalance = 0;
+            TokenBalances = new();
+        }
         
         // Session state
         public string? AuthToken { get; private set; }
         public List<AccountDetails> Accounts { get; private set; } = new();
         public byte[]? MainAddress => Accounts.FirstOrDefault()?.PublicKey;
+        public string? MainAddressBase58 => Accounts.FirstOrDefault()?.DisplayAddress;
+
+        public double SolBalance { get; private set; }
+        public List<TokenBalance> TokenBalances { get; private set; } = new();
 
         private async Task<bool> EnsureConnected()
         {
-            // Re-establish connection for each operation as WMA usually closes it after each response
             return await _connection.Connect();
         }
 
@@ -32,17 +51,15 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
             AuthorizationResult? result;
             if (string.IsNullOrEmpty(AuthToken))
             {
-                Console.WriteLine("[WMA] Authorizing new session...");
                 result = await _connection.Client!.Authorize(
                     new Uri("https://solana.unity-sdk.gg/"),
                     new Uri("favicon.ico", UriKind.Relative),
                     "Solana MAUI App",
-                    "mainnet-beta"
+                    _clusterName
                 );
             }
             else
             {
-                Console.WriteLine("[WMA] Reauthorizing existing session...");
                 result = await _connection.Client!.Reauthorize(
                     new Uri("https://solana.unity-sdk.gg/"),
                     new Uri("favicon.ico", UriKind.Relative),
@@ -55,9 +72,51 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
             {
                 AuthToken = result.AuthToken;
                 Accounts = result.Accounts;
-                Console.WriteLine($"[WMA] Session active. Token: {AuthToken}, Accounts: {Accounts.Count}");
+                await RefreshBalances();
             }
             return result;
+        }
+
+        public async Task RefreshBalances()
+        {
+            if (MainAddressBase58 == null) return;
+
+            try
+            {
+                // Fetch SOL Balance
+                var balanceResult = await _rpcClient.GetBalanceAsync(MainAddressBase58);
+                if (balanceResult.WasSuccessful)
+                {
+                    SolBalance = balanceResult.Result.Value / 1000000000.0;
+                }
+
+                // Fetch Token Balances
+                var tokensResult = await _rpcClient.GetTokenAccountsByOwnerAsync(MainAddressBase58, tokenProgramId: Solnet.Programs.TokenProgram.ProgramIdKey);
+                if (tokensResult.WasSuccessful)
+                {
+                    var newList = new List<TokenBalance>();
+                    foreach (var acc in tokensResult.Result.Value)
+                    {
+                        var info = acc.Account.Data.Parsed.Info;
+                        var amount = info.TokenAmount.AmountDecimal;
+                        if (amount > 0)
+                        {
+                            newList.Add(new TokenBalance
+                            {
+                                Mint = info.Mint,
+                                Amount = amount,
+                                Decimals = info.TokenAmount.Decimals,
+                                Symbol = "Token"
+                            });
+                        }
+                    }
+                    TokenBalances = newList;
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[WMA] Error refreshing balances: " + ex.Message);
+            }
         }
 
         public async Task ConnectWallet()
@@ -67,56 +126,55 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
                 var auth = await AuthorizeOrReauthorize();
                 if (auth != null)
                 {
-                    var address = auth.Accounts.FirstOrDefault()?.DisplayAddress ?? "Unknown";
-                    WalletCallbackService.HandleCallback("Connected: " + address);
+                    WalletCallbackService.HandleCallback("Connected");
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[WMA] Connection/Authorization Error: " + ex.Message);
+                Console.WriteLine("[WMA] Connection Error: " + ex.Message);
             }
         }
 
-        public async Task SignTestTransaction()
+        public async Task SendSol(string recipientBase58, ulong lamports)
         {
             try
             {
-                if (MainAddress == null)
-                {
-                    await ConnectWallet();
-                    if (MainAddress == null) return;
-                }
+                if (MainAddress == null) return;
 
-                Console.WriteLine("[WMA] SignTestTransaction is currently disabled due to library conflict.");
-                WalletCallbackService.HandleCallback("SignTransaction Disabled");
-                
-                /*
-                // Create a simple memo transaction
-                var blockhash = "11111111111111111111111111111111"; // Placeholder, wallet will usually fill or validate
+                var blockhashResult = await _rpcClient.GetRecentBlockHashAsync();
+                if (!blockhashResult.WasSuccessful) throw new Exception("Failed to get recent blockhash");
+
                 var feePayer = new PublicKey(MainAddress);
                 var txBuilder = new TransactionBuilder()
-                    .SetRecentBlockHash(blockhash)
+                    .SetRecentBlockHash(blockhashResult.Result.Value.Blockhash)
                     .SetFeePayer(feePayer)
-                    .AddInstruction(Solnet.Programs.MemoProgram.NewMemoInstruction("Hello from MAUI!"));
+                    .AddInstruction(SystemProgram.Transfer(feePayer, new PublicKey(recipientBase58), lamports));
                 
-                var txBytes = txBuilder.Build(new List<Account>()); // No private keys, wallet signs it
+                var txBytes = txBuilder.Build(new List<Account>());
 
+                if (!await EnsureConnected()) return;
                 var auth = await AuthorizeOrReauthorize();
                 if (auth == null) return;
 
-                Console.WriteLine("[WMA] Requesting signature for transaction...");
                 var signResult = await _connection.Client!.SignTransactions(new List<byte[]> { txBytes });
                 
                 if (signResult.SignedPayloads.Any())
                 {
-                    Console.WriteLine("[WMA] Transaction signed successfully!");
-                    WalletCallbackService.HandleCallback("Transaction Signed!");
+                    var txSignature = await _rpcClient.SendTransactionAsync(signResult.SignedPayloads[0]);
+                    if (txSignature.WasSuccessful)
+                    {
+                        WalletCallbackService.HandleCallback("Sent: " + txSignature.Result);
+                    }
+                    else
+                    {
+                        throw new Exception(txSignature.Reason);
+                    }
                 }
-                */
             }
             catch (Exception ex)
             {
-                Console.WriteLine("[WMA] SignTransaction Error: " + ex.Message);
+                Console.WriteLine("[WMA] SendSol Error: " + ex.Message);
+                WalletCallbackService.HandleCallback("Error: " + ex.Message);
             }
         }
 
@@ -124,18 +182,14 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
         {
             try
             {
-                if (MainAddress == null)
-                {
-                    await ConnectWallet();
-                    if (MainAddress == null) return;
-                }
+                if (MainAddress == null) return;
 
                 var message = Encoding.UTF8.GetBytes("Sign this message to prove ownership.");
                 
+                if (!await EnsureConnected()) return;
                 var auth = await AuthorizeOrReauthorize();
                 if (auth == null) return;
 
-                Console.WriteLine("[WMA] Requesting signature for message...");
                 var signResult = await _connection.Client!.SignMessages(
                     new List<byte[]> { message },
                     new List<byte[]> { MainAddress }
@@ -143,7 +197,6 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
 
                 if (signResult.SignedPayloads.Any())
                 {
-                    Console.WriteLine("[WMA] Message signed successfully!");
                     WalletCallbackService.HandleCallback("Message Signed!");
                 }
             }

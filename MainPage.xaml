@@ -1,42 +1,70 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
-             x:Class="SolanaWMAUnityMAUIIntegration.MainPage">
+             x:Class="SolanaWMAUnityMAUIIntegration.MainPage"
+             BackgroundColor="#121212">
 
-    <ScrollView>
-        <VerticalStackLayout
-            Padding="30"
-            Spacing="25">
-            
-            <Label 
-                Text="Solana Mobile Wallet Adapter"
-                FontSize="24"
-                HorizontalOptions="Center" />
-
-            <Button
-                x:Name="ConnectBtn"
-                Text="Connect Wallet" 
-                Clicked="ConnectWalletClicked"
-                HorizontalOptions="Fill" />
-
-            <Button
-                x:Name="SignTransactionBtn"
-                Text="Sign Test Transaction" 
-                Clicked="SignTransactionClicked"
-                HorizontalOptions="Fill" />
-
-            <Button
-                x:Name="SignMessageBtn"
-                Text="Sign Test Message" 
-                Clicked="SignMessageClicked"
-                HorizontalOptions="Fill" />
-
-            <Label 
-                x:Name="StatusLabel"
-                Text="Status: Idle"
-                HorizontalOptions="Center" />
+    <Grid RowDefinitions="Auto, *, Auto" Padding="20">
+        
+        <!-- Header / Wallet Card -->
+        <Frame Grid.Row="0" BackgroundColor="#1e1e1e" CornerRadius="15" HasShadow="True" Padding="20" Margin="0,0,0,20">
+            <VerticalStackLayout Spacing="10">
+                <Label Text="My Wallet" FontSize="14" TextColor="#888888" HorizontalOptions="Center" />
+                <Label x:Name="AddressLabel" Text="Not Connected" FontSize="12" TextColor="White" HorizontalOptions="Center" LineBreakMode="MiddleTruncation" />
+                <Label x:Name="BalanceLabel" Text="0.00 SOL" FontSize="36" FontAttributes="Bold" TextColor="#9945FF" HorizontalOptions="Center" />
                 
+                <HorizontalStackLayout HorizontalOptions="Center" Spacing="10" Margin="0,5">
+                    <Label Text="Devnet" VerticalOptions="Center" TextColor="#888888" />
+                    <Switch x:Name="NetworkSwitch" IsToggled="True" Toggled="NetworkSwitch_Toggled" />
+                    <Label Text="Mainnet" VerticalOptions="Center" TextColor="#888888" />
+                </HorizontalStackLayout>
+
+                <Button x:Name="ConnectBtn" Text="Connect Wallet" Clicked="ConnectWalletClicked" 
+                        BackgroundColor="#14F195" TextColor="Black" CornerRadius="25" HeightRequest="50" Margin="0,10,0,0" />
+            </VerticalStackLayout>
+        </Frame>
+
+        <!-- Token List -->
+        <VerticalStackLayout Grid.Row="1" Spacing="10">
+            <Label Text="Tokens" FontSize="18" FontAttributes="Bold" TextColor="White" Margin="0,0,0,5" />
+            <CollectionView x:Name="TokensCollectionView" HeightRequest="300">
+                <CollectionView.ItemTemplate>
+                    <DataTemplate>
+                        <Grid ColumnDefinitions="Auto, *, Auto" Padding="10" Margin="0,5">
+                            <Ellipse WidthRequest="40" HeightRequest="40" Fill="#2a2a2a" Grid.Column="0" />
+                            <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="15,0">
+                                <Label Text="{Binding Symbol}" TextColor="White" FontAttributes="Bold" />
+                                <Label Text="{Binding Mint}" TextColor="#888888" FontSize="10" LineBreakMode="MiddleTruncation" />
+                            </VerticalStackLayout>
+                            <Label Grid.Column="2" Text="{Binding DisplayAmount}" TextColor="White" VerticalOptions="Center" FontAttributes="Bold" />
+                        </Grid>
+                    </DataTemplate>
+                </CollectionView.ItemTemplate>
+                <CollectionView.EmptyView>
+                    <Label Text="No tokens found" TextColor="#444444" HorizontalOptions="Center" VerticalOptions="Center" Margin="0,50" />
+                </CollectionView.EmptyView>
+            </CollectionView>
         </VerticalStackLayout>
-    </ScrollView>
+
+        <!-- Actions -->
+        <VerticalStackLayout Grid.Row="2" Spacing="15">
+            
+            <!-- Send Form (Initially Hidden) -->
+            <VerticalStackLayout x:Name="SendForm" IsVisible="False" Spacing="10" BackgroundColor="#1e1e1e" Padding="15" Margin="0,0,0,10">
+                <Entry x:Name="RecipientEntry" Placeholder="Recipient Address" PlaceholderColor="#444444" TextColor="White" />
+                <Entry x:Name="AmountEntry" Placeholder="Amount (SOL)" Keyboard="Numeric" PlaceholderColor="#444444" TextColor="White" />
+                <Button Text="Confirm Send" Clicked="ConfirmSendClicked" BackgroundColor="#9945FF" />
+                <Button Text="Cancel" Clicked="CancelSendClicked" BackgroundColor="Transparent" TextColor="#888888" />
+            </VerticalStackLayout>
+
+            <Grid ColumnDefinitions="*, *" ColumnSpacing="15">
+                <Button Grid.Column="0" Text="Send SOL" Clicked="SendClicked" BackgroundColor="#2a2a2a" TextColor="White" CornerRadius="10" HeightRequest="60" />
+                <Button Grid.Column="1" Text="Swap" Clicked="SwapClicked" BackgroundColor="#2a2a2a" TextColor="White" CornerRadius="10" HeightRequest="60" />
+            </Grid>
+            
+            <Label x:Name="StatusLabel" Text="Status: Idle" TextColor="#888888" HorizontalOptions="Center" FontSize="12" />
+        </VerticalStackLayout>
+
+    </Grid>
 
 </ContentPage>
