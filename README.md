@@ -1,69 +1,194 @@
-SolanaWMAUnityMAUIIntegration
-The first-ever native .NET MAUI integration for the Solana Wallet Mobile SDK (WMA).
+# 🚀 Solana WMA SDK for .NET MAUI
 
-This repository provides a high-performance, native bridge for .NET MAUI Android applications to connect directly to the Solana Mobile Stack (SMS). Originally ported from the Unity-based SDK, this implementation removes the game-engine overhead, allowing C# developers to build native Web3 mobile experiences on Solana.
+The **first-ever Solana Mobile Wallet Adapter (WMA) SDK for .NET MAUI**.
 
-🚀 Features
-World's First: The only SDK currently enabling native WMA connectivity for .NET MAUI.
+This project brings native **Solana Mobile Stack** support to **C# MAUI developers**, enabling direct communication with mobile wallets like **Phantom** and **Solflare** on Android — without relying on Unity or heavy workarounds.
 
-Native Android Integration: Built using a Kotlin wrapper to interface with the Mobile Wallet Adapter (MWA) and exposed via a clean C# interface.
+---
 
-Unity-Free: No Unity libraries or overhead; optimized specifically for MAUI Android apps.
+## ✨ Features
 
-Full C# Support: Manage your Solana transactions and wallet connections entirely within your MAUI project.
+- ✅ Native **Solana Mobile Wallet Adapter (WMA)** integration for .NET MAUI  
+- ✅ Direct wallet connection (Phantom, Solflare, etc.)  
+- ✅ No Unity dependency — pure MAUI implementation  
+- ✅ Optimized for performance and low overhead  
+- ✅ Clean C#-friendly API design  
+- ✅ Android-first implementation  
 
-📦 Installation
-(Update this section based on how you want users to include it—via Project Reference or DLL)
+---
 
-Clone the repository:
+## 🧠 Why This Matters
 
-Bash
+Until now, developers building Solana mobile apps in C# had limited options:
+- Use Unity SDK (heavy and unnecessary for non-game apps)
+- Build custom native bridges (complex and time-consuming)
+
+This SDK solves that by:
+- Providing a **native MAUI bridge**
+- Enabling **true mobile Web3 apps in C#**
+- Opening Solana to the **.NET ecosystem**
+
+---
+
+## 📦 Installation
+
+### 1. Clone the Repository
+
+```bash
 git clone https://github.com/CryptoSodi/SolanaWMAUnityMAUIIntegration.git
-Add the project/library to your .NET MAUI Android solution.
+cd SolanaWMAUnityMAUIIntegration
+```
 
-Ensure your AndroidManifest.xml includes the necessary intent filters for wallet communication.
+---
 
-🛠 Usage
-Connecting your MAUI application to a Solana wallet (like Phantom or Solflare) is straightforward:
+### 2. Add to Your MAUI Project
 
-C#
-// Example: Initializing the connection
-var connection = new SolanaWMAConnection();
+- Include the binding / wrapper project into your solution
+- Reference it in your MAUI app
 
-try 
-{
-    var result = await connection.ConnectAsync();
-    if (result.IsSuccess)
-    {
-        Console.WriteLine($"Connected to wallet: {result.PublicKey}");
-    }
-}
-catch (Exception ex)
-{
-    // Handle connection failures or "Already Started" errors
-    Console.WriteLine($"Connection failed: {ex.Message}");
-}
-🏗 Why this exists?
-Previously, C# developers building on Solana were largely restricted to Unity if they wanted to use the Wallet Mobile SDK. By porting the logic to .NET MAUI, this SDK enables:
+---
 
-Smaller App Sizes: No need to include a game engine for a standard utility or DeFi app.
+### 3. Configure Android Manifest
 
-Native UI: Use the full power of MAUI controls while maintaining a persistent wallet session.
+Make sure your `AndroidManifest.xml` includes:
 
-Enterprise Ready: Better integration with standard .NET dependency injection and MVVM patterns.
+```xml
+<uses-permission android:name="android.permission.INTERNET" />
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+```
 
-🤝 Contributing
-Contributions are welcome! As this is the first iteration of the MAUI port, please feel free to open issues or submit pull requests to improve the connection stability and feature set.
+---
 
-📜 License
-This project is licensed under the MIT License - see the LICENSE file for details.
+### 4. Minimum Requirements
 
-🌟 Acknowledgments
-Solana Mobile Team for the original MWA protocol.
+- .NET MAUI  
+- Android API Level 24+  
+- Physical Android device (required for wallet interaction)
 
-Solnet for the underlying C# Solana libraries.
+---
 
-The Solana developer community for pushing the boundaries of Mobile Web3.
+## 🔌 Usage
 
-Next Step
-Would you like me to add a Troubleshooting section to the README specifically addressing the "WebSocket already started" error we saw in your logs?
+### Initialize Wallet Connection
+
+```csharp
+var walletClient = new MobileWalletAdapterClient();
+await walletClient.ConnectAsync();
+```
+
+---
+
+### Request Wallet Address
+
+```csharp
+var account = await walletClient.GetAccountAsync();
+Console.WriteLine($"Wallet Address: {account.PublicKey}");
+```
+
+---
+
+### Sign Transaction
+
+```csharp
+var signedTx = await walletClient.SignTransactionAsync(transactionBytes);
+```
+
+---
+
+## 🧩 Architecture Overview
+
+```
+MAUI App (C#)
+     ↓
+WMA Bridge Layer (This SDK)
+     ↓
+Android Native Layer (Kotlin/Java Interop)
+     ↓
+Solana Mobile Wallet Adapter (Socket-based protocol)
+     ↓
+Wallet Apps (Phantom / Solflare)
+```
+
+---
+
+## ⚙️ How It Works
+
+- Implements the **Solana Mobile Wallet Adapter protocol**
+- Uses **local socket communication** between app and wallet
+- Handles:
+  - Session creation
+  - Authorization
+  - Transaction signing
+  - Message signing
+
+---
+
+## 📱 Supported Wallets
+
+- Phantom (Mobile)  
+- Solflare (Mobile)  
+- Any wallet supporting **Solana Mobile Stack**
+
+---
+
+## 🚧 Current Status
+
+- ✅ Core connection flow implemented  
+- ✅ Wallet authorization working  
+- ✅ Transaction signing supported  
+- ⚠️ iOS support — *planned*  
+- ⚠️ Advanced session management — *in progress*  
+
+---
+
+## 🛣️ Roadmap
+
+- [ ] iOS support (if/when Solana Mobile expands)  
+- [ ] NuGet package release  
+- [ ] Simplified high-level API  
+- [ ] Sample production-ready app  
+- [ ] Deep link fallback support  
+
+---
+
+## 🤝 Contributing
+
+Contributions are welcome!
+
+1. Fork the repo  
+2. Create a feature branch  
+3. Submit a PR  
+
+---
+
+## 📄 License
+
+MIT License — feel free to use in commercial and personal projects.
+
+---
+
+## 🙌 Acknowledgements
+
+- Solana Mobile team for the WMA protocol  
+- Unity SDK reference implementation  
+- MAUI community  
+
+---
+
+## 🌍 Vision
+
+This project aims to make **Solana mobile development accessible to every .NET developer**.
+
+No Unity.  
+No hacks.  
+Just clean, native Web3 in C#.
+
+---
+
+## ⭐ Support
+
+If you find this useful:
+
+- ⭐ Star the repo  
+- 🐛 Report issues  
+- 📢 Share with the community  
