@@ -10,7 +10,10 @@
         <Frame Grid.Row="0" BackgroundColor="#1e1e1e" CornerRadius="15" HasShadow="True" Padding="20" Margin="0,0,0,20">
             <VerticalStackLayout Spacing="10">
                 <Label Text="My Wallet" FontSize="14" TextColor="#888888" HorizontalOptions="Center" />
-                <Label x:Name="AddressLabel" Text="Not Connected" FontSize="12" TextColor="White" HorizontalOptions="Center" LineBreakMode="MiddleTruncation" />
+                <HorizontalStackLayout HorizontalOptions="Center" Spacing="10">
+                    <Label x:Name="AddressLabel" Text="Not Connected" FontSize="12" TextColor="White" VerticalOptions="Center" LineBreakMode="MiddleTruncation" MaximumWidthRequest="200" />
+                    <ImageButton Source="dotnet_bot.png" WidthRequest="20" HeightRequest="20" Clicked="CopyAddressClicked" IsVisible="False" x:Name="CopyBtn" />
+                </HorizontalStackLayout>
                 <Label x:Name="BalanceLabel" Text="0.00 SOL" FontSize="36" FontAttributes="Bold" TextColor="#9945FF" HorizontalOptions="Center" />
                 
                 <HorizontalStackLayout HorizontalOptions="Center" Spacing="10" Margin="0,5">

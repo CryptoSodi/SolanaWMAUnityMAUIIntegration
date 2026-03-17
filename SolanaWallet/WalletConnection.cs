@@ -19,9 +19,11 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
 
         public void SetNetwork(bool isMainnet)
         {
-            _rpcClient = ClientFactory.GetClient(isMainnet ? Cluster.MainNet : Cluster.DevNet);
+            // Use specific endpoints instead of default enum to ensure reliability
+            var url = isMainnet ? "https://api.mainnet-beta.solana.com" : "https://api.devnet.solana.com";
+            _rpcClient = ClientFactory.GetClient(url);
             _clusterName = isMainnet ? "mainnet-beta" : "devnet";
-            Console.WriteLine($"[WMA] Network switched to: {_clusterName}");
+            Console.WriteLine($"[WMA] Network switched to: {_clusterName} ({url})");
             
             // Clear session when switching networks to force fresh authorize
             AuthToken = null;
@@ -83,39 +85,83 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
 
             try
             {
+                Console.WriteLine($"[WMA] Refreshing balances for {MainAddressBase58}...");
+                
                 // Fetch SOL Balance
                 var balanceResult = await _rpcClient.GetBalanceAsync(MainAddressBase58);
                 if (balanceResult.WasSuccessful)
                 {
                     SolBalance = balanceResult.Result.Value / 1000000000.0;
+                    Console.WriteLine($"[WMA] SOL Balance: {SolBalance}");
                 }
 
-                // Fetch Token Balances
+                var newList = new List<TokenBalance>();
+
+                // Fetch Original Token Program Balances
                 var tokensResult = await _rpcClient.GetTokenAccountsByOwnerAsync(MainAddressBase58, tokenProgramId: Solnet.Programs.TokenProgram.ProgramIdKey);
                 if (tokensResult.WasSuccessful)
                 {
-                    var newList = new List<TokenBalance>();
-                    foreach (var acc in tokensResult.Result.Value)
-                    {
-                        var info = acc.Account.Data.Parsed.Info;
-                        var amount = info.TokenAmount.AmountDecimal;
-                        if (amount > 0)
-                        {
-                            newList.Add(new TokenBalance
-                            {
-                                Mint = info.Mint,
-                                Amount = amount,
-                                Decimals = info.TokenAmount.Decimals,
-                                Symbol = "Token"
-                            });
-                        }
-                    }
-                    TokenBalances = newList;
+                    Console.WriteLine($"[WMA] Found {tokensResult.Result.Value.Count} TokenProgram accounts");
+                    ProcessTokenAccounts(tokensResult.Result.Value, newList);
                 }
+                else
+                {
+                    Console.WriteLine($"[WMA] TokenProgram fetch failed: {tokensResult.Reason}");
+                }
+
+                // Fetch Token-2022 Program Balances
+                var tokens2022Result = await _rpcClient.GetTokenAccountsByOwnerAsync(MainAddressBase58, tokenProgramId: "TokenzQdBNbLqP5VEhdkAS6EPFLC1PHnBqCXEpPxuEb");
+                if (tokens2022Result.WasSuccessful)
+                {
+                    Console.WriteLine($"[WMA] Found {tokens2022Result.Result.Value.Count} Token-2022 accounts");
+                    ProcessTokenAccounts(tokens2022Result.Result.Value, newList);
+                }
+                else
+                {
+                    Console.WriteLine($"[WMA] Token-2022 fetch failed (likely unsupported by RPC): {tokens2022Result.Reason}");
+                }
+
+                TokenBalances = newList;
+                Console.WriteLine($"[WMA] Total non-zero token balances displayed: {TokenBalances.Count}");
             }
             catch (Exception ex)
             {
                 Console.WriteLine("[WMA] Error refreshing balances: " + ex.Message);
+            }
+        }
+
+        private void ProcessTokenAccounts(List<Solnet.Rpc.Models.TokenAccount> accounts, List<TokenBalance> newList)
+        {
+            foreach (var acc in accounts)
+            {
+                try
+                {
+                    if (acc.Account.Data.Parsed == null)
+                    {
+                        Console.WriteLine($"[WMA] Warning: Account {acc.PublicKey} has no parsed data. Skipping.");
+                        continue;
+                    }
+
+                    var info = acc.Account.Data.Parsed.Info;
+                    var amount = info.TokenAmount.AmountDecimal;
+                    
+                    Console.WriteLine($"[WMA] Token Account: {acc.PublicKey}, Mint: {info.Mint}, Balance: {amount}");
+
+                    if (amount > 0)
+                    {
+                        newList.Add(new TokenBalance
+                        {
+                            Mint = info.Mint,
+                            Amount = amount,
+                            Decimals = info.TokenAmount.Decimals,
+                            Symbol = "Token"
+                        });
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[WMA] Error processing token account {acc.PublicKey}: {ex.Message}");
+                }
             }
         }
 
@@ -132,6 +178,73 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
             catch (Exception ex)
             {
                 Console.WriteLine("[WMA] Connection Error: " + ex.Message);
+            }
+        }
+
+        public async Task SendToken(string recipientBase58, ulong amount, string mintAddress, int decimals)
+        {
+            try
+            {
+                if (MainAddress == null) return;
+
+                var blockhashResult = await _rpcClient.GetRecentBlockHashAsync();
+                if (!blockhashResult.WasSuccessful) throw new Exception("Failed to get recent blockhash");
+
+                var feePayer = new PublicKey(MainAddress);
+                var mint = new PublicKey(mintAddress);
+                var recipient = new PublicKey(recipientBase58);
+
+                // Derive ATAs
+                var senderAta = TokenService.FindAssociatedTokenAddress(feePayer, mint);
+                var recipientAta = TokenService.FindAssociatedTokenAddress(recipient, mint);
+
+                var txBuilder = new TransactionBuilder()
+                    .SetRecentBlockHash(blockhashResult.Result.Value.Blockhash)
+                    .SetFeePayer(feePayer);
+
+                // Check if recipient ATA exists
+                var recipientAtaInfo = await _rpcClient.GetAccountInfoAsync(recipientAta.Key);
+                if (!recipientAtaInfo.WasSuccessful || recipientAtaInfo.Result.Value == null)
+                {
+                    Console.WriteLine("[WMA] Creating recipient ATA...");
+                    txBuilder.AddInstruction(TokenService.CreateAssociatedTokenAccountInstruction(feePayer, recipient, mint));
+                }
+
+                // Add TransferChecked instruction
+                txBuilder.AddInstruction(TokenService.CreateTransferCheckedInstruction(
+                    senderAta,
+                    mint,
+                    recipientAta,
+                    feePayer,
+                    amount,
+                    (byte)decimals
+                ));
+                
+                var txBytes = txBuilder.Build(new List<Account>());
+
+                if (!await EnsureConnected()) return;
+                var auth = await AuthorizeOrReauthorize();
+                if (auth == null) return;
+
+                var signResult = await _connection.Client!.SignTransactions(new List<byte[]> { txBytes });
+                
+                if (signResult.SignedPayloads.Any())
+                {
+                    var txSignature = await _rpcClient.SendTransactionAsync(signResult.SignedPayloads[0]);
+                    if (txSignature.WasSuccessful)
+                    {
+                        WalletCallbackService.HandleCallback("Token Sent: " + txSignature.Result);
+                    }
+                    else
+                    {
+                        throw new Exception(txSignature.Reason);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[WMA] SendToken Error: " + ex.Message);
+                WalletCallbackService.HandleCallback("Error: " + ex.Message);
             }
         }
 
