@@ -20,6 +20,14 @@ namespace SolanaWMAUnityMAUIIntegration
             {
                 StatusLabel.Text = "Status: " + message;
                 UpdateUI();
+                
+                if (message.StartsWith("Token Sent") || message.StartsWith("Sent:"))
+                {
+                    StatusLabel.Text = "Status: Transfer successful! Reloading...";
+                    await wallet.RefreshBalances();
+                    UpdateUI();
+                }
+
                 if (message.StartsWith("Error"))
                 {
                     await DisplayAlert("Wallet Error", message, "OK");
@@ -29,17 +37,23 @@ namespace SolanaWMAUnityMAUIIntegration
 
         private void UpdateUI()
         {
-            AddressLabel.Text = wallet.MainAddressBase58 ?? "Not Connected";
-            BalanceLabel.Text = $"{wallet.SolBalance:N2} SOL";
-            TokensCollectionView.ItemsSource = wallet.TokenBalances;
-            CopyBtn.IsVisible = wallet.MainAddressBase58 != null;
-            
-            if (wallet.MainAddress != null)
-            {
-                ConnectBtn.Text = "Reconnect / Refresh";
-                ConnectBtn.BackgroundColor = Color.FromArgb("#2a2a2a");
-                ConnectBtn.TextColor = Colors.White;
-            }
+            MainThread.BeginInvokeOnMainThread(() => {
+                AddressLabel.Text = wallet.MainAddressBase58 ?? "Not Connected";
+                BalanceLabel.Text = $"{wallet.SolBalance:N2} SOL";
+                
+                // Explicitly reset ItemsSource to ensure UI refresh
+                TokensCollectionView.ItemsSource = null;
+                TokensCollectionView.ItemsSource = wallet.TokenBalances;
+                
+                CopyBtn.IsVisible = wallet.MainAddressBase58 != null;
+                
+                if (wallet.MainAddress != null)
+                {
+                    ConnectBtn.Text = "Reconnect / Refresh";
+                    ConnectBtn.BackgroundColor = Color.FromArgb("#2a2a2a");
+                    ConnectBtn.TextColor = Colors.White;
+                }
+            });
         }
 
         private async void ConnectWalletClicked(object sender, EventArgs e)

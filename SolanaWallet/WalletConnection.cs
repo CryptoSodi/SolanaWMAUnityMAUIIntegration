@@ -82,7 +82,18 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
             if (result != null)
             {
                 AuthToken = result.AuthToken;
-                Accounts = result.Accounts;
+                
+                // Only update accounts if the response actually contains them
+                if (result.Accounts != null && result.Accounts.Count > 0)
+                {
+                    Accounts = result.Accounts;
+                    Console.WriteLine($"[WMA] Session updated. Main Address: {MainAddressBase58}");
+                }
+                else
+                {
+                    Console.WriteLine("[WMA] Warning: Reauthorize response had no accounts. Preserving existing account state.");
+                }
+
                 await RefreshBalances();
             }
             return result;
