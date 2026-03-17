@@ -66,7 +66,9 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
 
     public class SignedResult
     {
+        [JsonProperty("signed_payloads")]
         public List<string> SignedPayloads { get; set; } = new();
-        public List<byte[]> SignedPayloadsBytes => SignedPayloads.Select(Convert.FromBase64String).ToList();
+
+        public List<byte[]> SignedPayloadsBytes => SignedPayloads?.Select(Convert.FromBase64String).ToList() ?? new List<byte[]>();
     }
 }

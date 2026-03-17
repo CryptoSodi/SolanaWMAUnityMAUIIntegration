@@ -64,6 +64,7 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
 
         public static PublicKey FindAssociatedTokenAddress(PublicKey owner, PublicKey mint)
         {
+            // For Token-2022, the ATA derivation MUST use the Token-2022 Program ID
             if (!PublicKey.TryFindProgramAddress(
                 new[] { owner.KeyBytes, TOKEN_2022_PROGRAM_ID.KeyBytes, mint.KeyBytes },
                 ASSOCIATED_TOKEN_PROGRAM_ID,

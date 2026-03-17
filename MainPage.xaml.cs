@@ -6,6 +6,7 @@ namespace SolanaWMAUnityMAUIIntegration
     {
         WalletConnection wallet = new WalletConnection();
         private bool _isSwapping = false;
+        private TokenBalance? _selectedToken = null;
 
         public MainPage()
         {
@@ -72,20 +73,38 @@ namespace SolanaWMAUnityMAUIIntegration
                 return;
             }
             _isSwapping = false;
+            _selectedToken = null;
             SendForm.IsVisible = true;
             AmountEntry.Placeholder = "Amount (SOL)";
+            TokensCollectionView.SelectedItem = null;
+        }
+
+        private void TokensCollectionView_SelectionChanged(object sender, SelectionChangedEventArgs e)
+        {
+            if (e.CurrentSelection.FirstOrDefault() is TokenBalance token)
+            {
+                if (wallet.MainAddress == null) return;
+
+                _selectedToken = token;
+                _isSwapping = true;
+                SendForm.IsVisible = true;
+                AmountEntry.Placeholder = $"Amount ({token.Symbol})";
+                StatusLabel.Text = $"Status: Selected {token.Symbol}";
+                
+                // Clear selection so it can be re-tapped if needed
+                TokensCollectionView.SelectedItem = null; 
+            }
         }
 
         private void SwapClicked(object sender, EventArgs e)
         {
+            // Keeping Swap as a generic fallback or future placeholder
             if (wallet.MainAddress == null)
             {
                 DisplayAlert("Wallet", "Please connect your wallet first", "OK");
                 return;
             }
-            _isSwapping = true;
-            SendForm.IsVisible = true;
-            AmountEntry.Placeholder = "Amount (LUDC)";
+            DisplayAlert("Select Token", "Tap a token from the list above to send it.", "OK");
         }
 
         private async void ConfirmSendClicked(object sender, EventArgs e)
@@ -97,15 +116,11 @@ namespace SolanaWMAUnityMAUIIntegration
 
             SendForm.IsVisible = false;
 
-            if (_isSwapping)
+            if (_isSwapping && _selectedToken != null)
             {
-                // Hardcoded LUDC mint for demo: 8Abr4aSqHbqUNK1ubRVfcdnAhS3RjmYRPDf11dt7pcfW (Decimals: 9)
-                string mint = "8Abr4aSqHbqUNK1ubRVfcdnAhS3RjmYRPDf11dt7pcfW";
-                int decimals = 9;
-                ulong tokenAmount = (ulong)(amount * Math.Pow(10, decimals));
-                
-                StatusLabel.Text = $"Status: Sending {amount} LUDC...";
-                await wallet.SendToken(recipient, tokenAmount, mint, decimals);
+                StatusLabel.Text = $"Status: Sending {amount} {_selectedToken.Symbol}...";
+                ulong tokenAmount = (ulong)(amount * Math.Pow(10, _selectedToken.Decimals));
+                await wallet.SendToken(recipient, tokenAmount, _selectedToken.Mint, _selectedToken.Decimals);
             }
             else
             {

@@ -1,4 +1,4 @@
-﻿using Android.Content;
+using Android.Content;
 using System.Net;
 using System.Net.WebSockets;
 using System.Text;

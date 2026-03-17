@@ -30,7 +30,7 @@
         <!-- Token List -->
         <VerticalStackLayout Grid.Row="1" Spacing="10">
             <Label Text="Tokens" FontSize="18" FontAttributes="Bold" TextColor="White" Margin="0,0,0,5" />
-            <CollectionView x:Name="TokensCollectionView" HeightRequest="300">
+            <CollectionView x:Name="TokensCollectionView" HeightRequest="300" SelectionMode="Single" SelectionChanged="TokensCollectionView_SelectionChanged">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
                         <Grid ColumnDefinitions="Auto, *, Auto" Padding="10" Margin="0,5">
