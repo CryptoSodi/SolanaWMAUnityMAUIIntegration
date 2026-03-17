@@ -1,18 +1,41 @@
-﻿<?xml version="1.0" encoding="utf-8" ?>
+<?xml version="1.0" encoding="utf-8" ?>
 <ContentPage xmlns="http://schemas.microsoft.com/dotnet/2021/maui"
              xmlns:x="http://schemas.microsoft.com/winfx/2009/xaml"
              x:Class="SolanaWMAUnityMAUIIntegration.MainPage">
 
     <ScrollView>
         <VerticalStackLayout
-            Padding="30,0"
+            Padding="30"
             Spacing="25">
+            
+            <Label 
+                Text="Solana Mobile Wallet Adapter"
+                FontSize="24"
+                HorizontalOptions="Center" />
+
             <Button
-                x:Name="CounterBtn"
-                Text="Click me" 
-                SemanticProperties.Hint="Connect"
+                x:Name="ConnectBtn"
+                Text="Connect Wallet" 
                 Clicked="ConnectWalletClicked"
                 HorizontalOptions="Fill" />
+
+            <Button
+                x:Name="SignTransactionBtn"
+                Text="Sign Test Transaction" 
+                Clicked="SignTransactionClicked"
+                HorizontalOptions="Fill" />
+
+            <Button
+                x:Name="SignMessageBtn"
+                Text="Sign Test Message" 
+                Clicked="SignMessageClicked"
+                HorizontalOptions="Fill" />
+
+            <Label 
+                x:Name="StatusLabel"
+                Text="Status: Idle"
+                HorizontalOptions="Center" />
+                
         </VerticalStackLayout>
     </ScrollView>
 

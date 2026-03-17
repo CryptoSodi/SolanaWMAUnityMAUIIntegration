@@ -1,0 +1,5 @@
+# Project Instructions
+
+- **Framework:** We use C# MAUI.
+- **Goal:** port SolanaUnitySDK to MAUI C# Android WMA. SDK Code is present C:\repos\SolanaWMAUnityMAUIIntegration\Runtime.
+- **Tone:** Be concise. Don't explain basic concepts.
