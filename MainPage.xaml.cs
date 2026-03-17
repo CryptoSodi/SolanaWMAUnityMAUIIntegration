@@ -1,24 +1,26 @@
-﻿namespace SolanaWMAUnityMAUIIntegration
+﻿using SolanaWMAUnityMAUIIntegration.SolanaWallet;
+namespace SolanaWMAUnityMAUIIntegration
 {
     public partial class MainPage : ContentPage
     {
-        int count = 0;
-
+        WalletConnection wallet = new WalletConnection();
         public MainPage()
         {
-            InitializeComponent();
+            InitializeComponent(); 
+            WalletCallbackService.OnWalletConnected += OnWalletConnected;
         }
-
-        private void OnCounterClicked(object? sender, EventArgs e)
+        void OnWalletConnected(string url)
         {
-            count++;
+            Console.WriteLine("Wallet connected: " + url);
 
-            if (count == 1)
-                CounterBtn.Text = $"Clicked {count} time";
-            else
-                CounterBtn.Text = $"Clicked {count} times";
-
-            SemanticScreenReader.Announce(CounterBtn.Text);
+            MainThread.BeginInvokeOnMainThread(async () =>
+            {
+                await DisplayAlert("Wallet Response", url, "OK");
+            });
+        }
+        async void ConnectWalletClicked(object sender, EventArgs e)
+        {
+            await wallet.ConnectWallet();
         }
     }
 }
