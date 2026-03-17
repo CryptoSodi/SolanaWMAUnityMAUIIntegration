@@ -21,9 +21,9 @@ namespace SolanaWMAUnityMAUIIntegration
                 StatusLabel.Text = "Status: " + message;
                 UpdateUI();
                 
-                if (message.StartsWith("Token Sent") || message.StartsWith("Sent:"))
+                if (message.StartsWith("Token Sent") || message.StartsWith("Sent:") || message.StartsWith("Swap Sent"))
                 {
-                    StatusLabel.Text = "Status: Transfer successful! Reloading...";
+                    StatusLabel.Text = "Status: Transaction successful! Reloading...";
                     await wallet.RefreshBalances();
                     UpdateUI();
                 }
@@ -41,7 +41,6 @@ namespace SolanaWMAUnityMAUIIntegration
                 AddressLabel.Text = wallet.MainAddressBase58 ?? "Not Connected";
                 BalanceLabel.Text = $"{wallet.SolBalance:N2} SOL";
                 
-                // Explicitly reset ItemsSource to ensure UI refresh
                 TokensCollectionView.ItemsSource = null;
                 TokensCollectionView.ItemsSource = wallet.TokenBalances;
                 
@@ -89,6 +88,7 @@ namespace SolanaWMAUnityMAUIIntegration
             _isSwapping = false;
             _selectedToken = null;
             SendForm.IsVisible = true;
+            RecipientEntry.IsVisible = true;
             AmountEntry.Placeholder = "Amount (SOL)";
             TokensCollectionView.SelectedItem = null;
         }
@@ -100,47 +100,81 @@ namespace SolanaWMAUnityMAUIIntegration
                 if (wallet.MainAddress == null) return;
 
                 _selectedToken = token;
+                _isSwapping = false; // Row tap = Send
+                SendForm.IsVisible = true;
+                RecipientEntry.IsVisible = true;
+                AmountEntry.Placeholder = $"Amount ({token.Symbol})";
+                StatusLabel.Text = $"Status: Selected {token.Symbol} for Send";
+                
+                TokensCollectionView.SelectedItem = null; 
+            }
+        }
+
+        private void TokenSwapClicked(object sender, EventArgs e)
+        {
+            if (sender is Button btn && btn.CommandParameter is TokenBalance token)
+            {
+                if (wallet.MainAddress == null)
+                {
+                    DisplayAlert("Wallet", "Please connect your wallet first", "OK");
+                    return;
+                }
+
+                _selectedToken = token;
                 _isSwapping = true;
                 SendForm.IsVisible = true;
-                AmountEntry.Placeholder = $"Amount ({token.Symbol})";
-                StatusLabel.Text = $"Status: Selected {token.Symbol}";
-                
-                // Clear selection so it can be re-tapped if needed
-                TokensCollectionView.SelectedItem = null; 
+                RecipientEntry.IsVisible = false; // Recipient not needed for Swap
+                AmountEntry.Placeholder = $"Amount ({token.Symbol}) to Swap for SOL";
+                StatusLabel.Text = $"Status: Selected {token.Symbol} for Swap";
             }
         }
 
         private void SwapClicked(object sender, EventArgs e)
         {
-            // Keeping Swap as a generic fallback or future placeholder
             if (wallet.MainAddress == null)
             {
                 DisplayAlert("Wallet", "Please connect your wallet first", "OK");
                 return;
             }
-            DisplayAlert("Select Token", "Tap a token from the list above to send it.", "OK");
+            DisplayAlert("Select Token", "Tap the 'Swap' button next to a token in the list.", "OK");
         }
 
         private async void ConfirmSendClicked(object sender, EventArgs e)
         {
-            var recipient = RecipientEntry.Text;
-            if (string.IsNullOrEmpty(recipient)) return;
-
             if (!double.TryParse(AmountEntry.Text, out double amount)) return;
 
             SendForm.IsVisible = false;
 
-            if (_isSwapping && _selectedToken != null)
+            if (_isSwapping)
             {
-                StatusLabel.Text = $"Status: Sending {amount} {_selectedToken.Symbol}...";
-                ulong tokenAmount = (ulong)(amount * Math.Pow(10, _selectedToken.Decimals));
-                await wallet.SendToken(recipient, tokenAmount, _selectedToken.Mint, _selectedToken.Decimals);
+                if (_selectedToken != null)
+                {
+                    StatusLabel.Text = $"Status: Swapping {amount} {_selectedToken.Symbol} for SOL...";
+                    ulong tokenAmount = (ulong)(amount * Math.Pow(10, _selectedToken.Decimals));
+                    await wallet.PerformJupiterSwap(_selectedToken.Mint, "So11111111111111111111111111111111111111112", tokenAmount);
+                }
             }
             else
             {
-                StatusLabel.Text = $"Status: Sending {amount} SOL...";
-                ulong lamports = (ulong)(amount * 1000000000);
-                await wallet.SendSol(recipient, lamports);
+                var recipient = RecipientEntry.Text;
+                if (string.IsNullOrEmpty(recipient)) 
+                {
+                    await DisplayAlert("Error", "Recipient address is required for sending", "OK");
+                    return;
+                }
+
+                if (_selectedToken != null)
+                {
+                    StatusLabel.Text = $"Status: Sending {amount} {_selectedToken.Symbol}...";
+                    ulong tokenAmount = (ulong)(amount * Math.Pow(10, _selectedToken.Decimals));
+                    await wallet.SendToken(recipient, tokenAmount, _selectedToken.Mint, _selectedToken.Decimals);
+                }
+                else
+                {
+                    StatusLabel.Text = $"Status: Sending {amount} SOL...";
+                    ulong lamports = (ulong)(amount * 1000000000);
+                    await wallet.SendSol(recipient, lamports);
+                }
             }
         }
 

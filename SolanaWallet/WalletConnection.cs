@@ -182,6 +182,65 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
             }
         }
 
+        public async Task PerformJupiterSwap(string inputMint, string outputMint, ulong amount)
+        {
+            try
+            {
+                if (MainAddress == null || MainAddressBase58 == null) return;
+
+                bool isMainnet = _clusterName == "mainnet-beta";
+                Console.WriteLine($"[WMA] Starting Jupiter swap: {amount} of {inputMint} to {outputMint} (isMainnet: {isMainnet})");
+
+                // 1. Get Quote
+                var quote = await SwapService.GetQuote(inputMint, outputMint, amount, isMainnet);
+                if (quote == null)
+                {
+                    throw new Exception("Failed to get swap quote from Jupiter. (Devnet tokens often lack liquidity on Jupiter)");
+                }
+                Console.WriteLine($"[WMA] Quote received. Expected output: {quote.OutAmount}");
+
+                // 2. Get Swap Transaction
+                var swapTxBase64 = await SwapService.GetSwapTransaction(MainAddressBase58, quote, isMainnet);
+                if (string.IsNullOrEmpty(swapTxBase64))
+                {
+                    throw new Exception("Failed to get swap transaction from Jupiter.");
+                }
+
+                // 3. Prepare for signing
+                // Jupiter returns a fully formed wire transaction
+                var txBytes = Convert.FromBase64String(swapTxBase64);
+
+                if (!await EnsureConnected()) return;
+                var auth = await AuthorizeOrReauthorize();
+                if (auth == null) return;
+
+                // 4. Sign via WMA
+                Console.WriteLine("[WMA] Requesting signature for Jupiter swap...");
+                var signResult = await _connection.Client!.SignTransactions(new List<byte[]> { txBytes });
+                
+                if (signResult != null && signResult.SignedPayloads.Any())
+                {
+                    // 5. Broadcast
+                    Console.WriteLine("[WMA] Broadcasting signed Jupiter swap...");
+                    var txSignature = await _rpcClient.SendTransactionAsync(signResult.SignedPayloads[0]);
+                    if (txSignature.WasSuccessful)
+                    {
+                        Console.WriteLine($"[WMA] Swap Success! Signature: {txSignature.Result}");
+                        WalletCallbackService.HandleCallback("Swap Sent: " + txSignature.Result);
+                    }
+                    else
+                    {
+                        throw new Exception($"Broadcast failed: {txSignature.Reason}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine("[WMA] Swap Error: " + ex.Message);
+                WalletCallbackService.HandleCallback("Error: " + ex.Message);
+            }
+        }
+
         public async Task SendToken(string recipientBase58, ulong amount, string mintAddress, int decimals)
         {
             try

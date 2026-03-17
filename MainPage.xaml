@@ -33,13 +33,20 @@
             <CollectionView x:Name="TokensCollectionView" HeightRequest="300" SelectionMode="Single" SelectionChanged="TokensCollectionView_SelectionChanged">
                 <CollectionView.ItemTemplate>
                     <DataTemplate>
-                        <Grid ColumnDefinitions="Auto, *, Auto" Padding="10" Margin="0,5">
+                        <Grid ColumnDefinitions="Auto, *, Auto, Auto" Padding="10" Margin="0,5">
                             <Ellipse WidthRequest="40" HeightRequest="40" Fill="#2a2a2a" Grid.Column="0" />
                             <VerticalStackLayout Grid.Column="1" VerticalOptions="Center" Margin="15,0">
                                 <Label Text="{Binding Symbol}" TextColor="White" FontAttributes="Bold" />
                                 <Label Text="{Binding Mint}" TextColor="#888888" FontSize="10" LineBreakMode="MiddleTruncation" />
                             </VerticalStackLayout>
-                            <Label Grid.Column="2" Text="{Binding DisplayAmount}" TextColor="White" VerticalOptions="Center" FontAttributes="Bold" />
+                            
+                            <VerticalStackLayout Grid.Column="2" VerticalOptions="Center" HorizontalOptions="End" Margin="0,0,10,0">
+                                <Label Text="{Binding DisplayAmount}" TextColor="White" FontAttributes="Bold" HorizontalOptions="End" />
+                            </VerticalStackLayout>
+
+                            <Button Grid.Column="3" Text="Swap" FontSize="10" HeightRequest="30" Padding="5,0"
+                                    BackgroundColor="#9945FF" TextColor="White" 
+                                    Clicked="TokenSwapClicked" CommandParameter="{Binding .}" />
                         </Grid>
                     </DataTemplate>
                 </CollectionView.ItemTemplate>
