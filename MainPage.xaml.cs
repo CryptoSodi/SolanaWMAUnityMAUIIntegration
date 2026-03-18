@@ -89,6 +89,7 @@ namespace SolanaWMAUnityMAUIIntegration
             _selectedToken = null;
             SendForm.IsVisible = true;
             RecipientEntry.IsVisible = true;
+            ConfirmBtn.Text = "Confirm Send";
             AmountEntry.Placeholder = "Amount (SOL)";
             TokensCollectionView.SelectedItem = null;
         }
@@ -103,6 +104,7 @@ namespace SolanaWMAUnityMAUIIntegration
                 _isSwapping = false; // Row tap = Send
                 SendForm.IsVisible = true;
                 RecipientEntry.IsVisible = true;
+                ConfirmBtn.Text = "Confirm Send";
                 AmountEntry.Placeholder = $"Amount ({token.Symbol})";
                 StatusLabel.Text = $"Status: Selected {token.Symbol} for Send";
                 
@@ -124,6 +126,7 @@ namespace SolanaWMAUnityMAUIIntegration
                 _isSwapping = true;
                 SendForm.IsVisible = true;
                 RecipientEntry.IsVisible = false; // Recipient not needed for Swap
+                ConfirmBtn.Text = "Confirm Swap";
                 AmountEntry.Placeholder = $"Amount ({token.Symbol}) to Swap for SOL";
                 StatusLabel.Text = $"Status: Selected {token.Symbol} for Swap";
             }
@@ -136,12 +139,21 @@ namespace SolanaWMAUnityMAUIIntegration
                 DisplayAlert("Wallet", "Please connect your wallet first", "OK");
                 return;
             }
-            DisplayAlert("Select Token", "Tap the 'Swap' button next to a token in the list.", "OK");
+            
+            _isSwapping = true;
+            _selectedToken = null; // No token selected means we are spending SOL
+            SendForm.IsVisible = true;
+            RecipientEntry.IsVisible = false;
+            ConfirmBtn.Text = "Confirm Swap"; // Update button text
+            
+            string targetSymbol = "LUDC";
+            AmountEntry.Placeholder = $"Amount (SOL) to Swap for {targetSymbol}";
+            StatusLabel.Text = $"Status: Swapping SOL for {targetSymbol}";
         }
 
         private async void ConfirmSendClicked(object sender, EventArgs e)
         {
-            if (!double.TryParse(AmountEntry.Text, out double amount)) return;
+            if (!double.TryParse(AmountEntry.Text, out double amount) || amount <= 0) return;
 
             SendForm.IsVisible = false;
 
@@ -149,9 +161,23 @@ namespace SolanaWMAUnityMAUIIntegration
             {
                 if (_selectedToken != null)
                 {
+                    // Case 1: Swap TOKEN -> SOL
                     StatusLabel.Text = $"Status: Swapping {amount} {_selectedToken.Symbol} for SOL...";
                     ulong tokenAmount = (ulong)(amount * Math.Pow(10, _selectedToken.Decimals));
                     await wallet.PerformJupiterSwap(_selectedToken.Mint, "So11111111111111111111111111111111111111112", tokenAmount);
+                }
+                else
+                {
+                    // Case 2: Swap SOL -> TOKEN
+                    bool isMainnet = NetworkSwitch.IsToggled;
+                    // LUDC Mainnet: JSXWEi4ZXJkrkqWQg4UjUPzpmpYYFxzLmBuADh5cyai
+                    // LUDC Devnet: 8Abr4aSqHbqUNK1ubRVfcdnAhS3RjmYRPDf11dt7pcfW
+                    string targetMint = isMainnet ? "JSXWEi4ZXJkrkqWQg4UjUPzpmpYYFxzLmBuADh5cyai" : "8Abr4aSqHbqUNK1ubRVfcdnAhS3RjmYRPDf11dt7pcfW";
+                    string targetSymbol = "LUDC";
+
+                    StatusLabel.Text = $"Status: Swapping {amount} SOL for {targetSymbol}...";
+                    ulong lamports = (ulong)(amount * 1000000000); // SOL has 9 decimals
+                    await wallet.PerformJupiterSwap("So11111111111111111111111111111111111111112", targetMint, lamports);
                 }
             }
             else
@@ -181,6 +207,23 @@ namespace SolanaWMAUnityMAUIIntegration
         private void CancelSendClicked(object sender, EventArgs e)
         {
             SendForm.IsVisible = false;
+        }
+
+        private void MaxAmountClicked(object sender, EventArgs e)
+        {
+            if (wallet.MainAddress == null) return;
+
+            if (_selectedToken != null)
+            {
+                // Set to full token balance
+                AmountEntry.Text = _selectedToken.Amount.ToString();
+            }
+            else
+            {
+                // Set to SOL balance minus a small buffer for gas fees (0.005 SOL)
+                double maxSol = Math.Max(0, wallet.SolBalance - 0.005);
+                AmountEntry.Text = maxSol.ToString("F4");
+            }
         }
     }
 }

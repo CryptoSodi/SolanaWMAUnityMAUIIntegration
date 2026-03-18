@@ -191,42 +191,101 @@ namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
                 bool isMainnet = _clusterName == "mainnet-beta";
                 Console.WriteLine($"[WMA] Starting Jupiter swap: {amount} of {inputMint} to {outputMint} (isMainnet: {isMainnet})");
 
-                // 1. Get Quote
+                // 1. Pre-swap Balance Check (from SwapScreen.cs logic)
+                bool isInputSol = inputMint == "So11111111111111111111111111111111111111112";
+                if (isInputSol)
+                {
+                    var balanceRes = await _rpcClient.GetBalanceAsync(MainAddressBase58);
+                    if (balanceRes.WasSuccessful && balanceRes.Result.Value < amount)
+                    {
+                        throw new Exception($"Insufficient SOL balance. Have: {balanceRes.Result.Value / 1e9:N4}, Need: {amount / 1e9:N4}");
+                    }
+                }
+                else
+                {
+                    // Find the ATA or check balance
+                    var tokenAccounts = await _rpcClient.GetTokenAccountsByOwnerAsync(MainAddressBase58, inputMint);
+                    ulong currentBalance = 0;
+                    if (tokenAccounts.WasSuccessful && tokenAccounts.Result.Value != null && tokenAccounts.Result.Value.Any())
+                    {
+                        currentBalance = tokenAccounts.Result.Value.First().Account.Data.Parsed.Info.TokenAmount.AmountUlong;
+                    }
+                    
+                    Console.WriteLine($"[WMA] Token Balance Check: Current={currentBalance}, Required={amount}");
+                    
+                    if (currentBalance < amount)
+                    {
+                        throw new Exception($"Insufficient token balance for swap. Have: {currentBalance}, Need: {amount}");
+                    }
+                }
+
+                // 2. Get Quote
                 var quote = await SwapService.GetQuote(inputMint, outputMint, amount, isMainnet);
                 if (quote == null)
                 {
-                    throw new Exception("Failed to get swap quote from Jupiter. (Devnet tokens often lack liquidity on Jupiter)");
+                    string networkMsg = isMainnet ? "Mainnet" : "Devnet";
+                    throw new Exception($"Failed to get swap quote from Jupiter on {networkMsg}. Liquidity might be insufficient.");
                 }
                 Console.WriteLine($"[WMA] Quote received. Expected output: {quote.OutAmount}");
 
-                // 2. Get Swap Transaction
-                var swapTxBase64 = await SwapService.GetSwapTransaction(MainAddressBase58, quote, isMainnet);
-                if (string.IsNullOrEmpty(swapTxBase64))
+                // 3. Get Swap Transaction
+                var swapResponse = await SwapService.GetSwapTransaction(MainAddressBase58, quote, isMainnet);
+                if (swapResponse == null || string.IsNullOrEmpty(swapResponse.SwapTransaction))
                 {
                     throw new Exception("Failed to get swap transaction from Jupiter.");
                 }
 
-                // 3. Prepare for signing
-                // Jupiter returns a fully formed wire transaction
-                var txBytes = Convert.FromBase64String(swapTxBase64);
+                // 4. Prepare for signing
+                var txBytes = Convert.FromBase64String(swapResponse.SwapTransaction);
 
                 if (!await EnsureConnected()) return;
                 var auth = await AuthorizeOrReauthorize();
                 if (auth == null) return;
 
-                // 4. Sign via WMA
+                // 5. Sign via WMA
                 Console.WriteLine("[WMA] Requesting signature for Jupiter swap...");
                 var signResult = await _connection.Client!.SignTransactions(new List<byte[]> { txBytes });
                 
                 if (signResult != null && signResult.SignedPayloads.Any())
                 {
-                    // 5. Broadcast
+                    // 6. Broadcast
                     Console.WriteLine("[WMA] Broadcasting signed Jupiter swap...");
                     var txSignature = await _rpcClient.SendTransactionAsync(signResult.SignedPayloads[0]);
                     if (txSignature.WasSuccessful)
                     {
-                        Console.WriteLine($"[WMA] Swap Success! Signature: {txSignature.Result}");
+                        Console.WriteLine($"[WMA] Swap Sent! Signature: {txSignature.Result}");
                         WalletCallbackService.HandleCallback("Swap Sent: " + txSignature.Result);
+
+                        // 7. Confirm
+                        Console.WriteLine("[WMA] Waiting for confirmation...");
+                        bool confirmed = false;
+                        int attempts = 0;
+                        while (!confirmed && attempts < 30)
+                        {
+                            var status = await _rpcClient.GetSignatureStatusesAsync(new List<string> { txSignature.Result });
+                            if (status.WasSuccessful && status.Result.Value != null && status.Result.Value.Count > 0 && status.Result.Value[0] != null)
+                            {
+                                var sigStatus = status.Result.Value[0];
+                                if (sigStatus.Confirmations > 0 || sigStatus.ConfirmationStatus == "confirmed" || sigStatus.ConfirmationStatus == "finalized")
+                                {
+                                    confirmed = true;
+                                    break;
+                                }
+                            }
+                            await Task.Delay(2000);
+                            attempts++;
+                        }
+
+                        if (confirmed)
+                        {
+                            Console.WriteLine("[WMA] Swap Confirmed!");
+                            WalletCallbackService.HandleCallback("Swap Confirmed: " + txSignature.Result);
+                            await RefreshBalances(); // Refresh local state after successful swap
+                        }
+                        else
+                        {
+                            Console.WriteLine("[WMA] Confirmation timed out, but transaction was sent.");
+                        }
                     }
                     else
                     {

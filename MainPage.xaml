@@ -59,11 +59,13 @@
         <!-- Actions -->
         <VerticalStackLayout Grid.Row="2" Spacing="15">
             
-            <!-- Send Form (Initially Hidden) -->
             <VerticalStackLayout x:Name="SendForm" IsVisible="False" Spacing="10" BackgroundColor="#1e1e1e" Padding="15" Margin="0,0,0,10">
                 <Entry x:Name="RecipientEntry" Placeholder="Recipient Address" PlaceholderColor="#444444" TextColor="White" />
-                <Entry x:Name="AmountEntry" Placeholder="Amount (SOL)" Keyboard="Numeric" PlaceholderColor="#444444" TextColor="White" />
-                <Button Text="Confirm Send" Clicked="ConfirmSendClicked" BackgroundColor="#9945FF" />
+                <Grid ColumnDefinitions="*, Auto" ColumnSpacing="10">
+                    <Entry x:Name="AmountEntry" Grid.Column="0" Placeholder="Amount (SOL)" Keyboard="Numeric" PlaceholderColor="#444444" TextColor="White" />
+                    <Button Grid.Column="1" Text="Max" Clicked="MaxAmountClicked" BackgroundColor="#2a2a2a" TextColor="#14F195" Padding="10,0" HeightRequest="45" VerticalOptions="Center" />
+                </Grid>
+                <Button x:Name="ConfirmBtn" Text="Confirm Send" Clicked="ConfirmSendClicked" BackgroundColor="#9945FF" />
                 <Button Text="Cancel" Clicked="CancelSendClicked" BackgroundColor="Transparent" TextColor="#888888" />
             </VerticalStackLayout>
 
