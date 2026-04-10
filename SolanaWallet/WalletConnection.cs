@@ -1,13 +1,8 @@
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
+using Solnet.Programs;
 using Solnet.Rpc;
 using Solnet.Rpc.Builders;
-using Solnet.Programs;
-using Solnet.Rpc.Models;
 using Solnet.Wallet;
+using System.Text;
 
 namespace SolanaWMAUnityMAUIIntegration.SolanaWallet
 {
